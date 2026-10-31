@@ -8,6 +8,7 @@ classdef ES
             [d,nc] = size(xseed);
             x = zeros(d,nc,chain_length); g = zeros(nc,chain_length);
             normals = randn(d,nc,chain_length);
+            mh_uniforms = rand(1,nc,chain_length); %#ok<NASGU> Match public indicator-MH random allocation.
             n_calls = 0;
             for step = 1:chain_length
                 current = xseed; values = gseed;
@@ -24,7 +25,7 @@ classdef ES
                     end
                     n_calls = n_calls + numel(pending);
                     logpdf = -.5*sum(proposal.^2,1)-d/2*log(2*pi);
-                    accepted = distribution.contains(proposed_g,logpdf);
+                    accepted = distribution.contains(proposed_g,logpdf) | (mh_uniforms(1,pending,step)==0);
                     current(:,pending(accepted)) = proposal(:,accepted);
                     values(pending(accepted)) = proposed_g(accepted);
                     rejected = ~accepted;
