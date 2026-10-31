@@ -19,13 +19,13 @@ classdef SeMCS
             if nargin>6, obj.profile = profile; end
         end
         function out = run(obj)
-            if isa(obj.sampler,'HMC'), obj.sampler.current_time=[]; end
-            if isa(obj.sampler,'aCS'), obj.sampler.current_lambda=[]; obj.sampler.level_history={}; end
             validateattributes(obj.dimension,{'numeric'},{'scalar','integer','positive'});
             validateattributes(obj.n_samples,{'numeric'},{'scalar','integer','>=',2});
             validateattributes(obj.max_levels,{'numeric'},{'scalar','integer','positive'});
             validateattributes(obj.p0,{'numeric'},{'scalar','>',0,'<',1});
             distribution = ReSuS(Inf,Inf,obj.profile);
+            distribution.lsf=obj.lsf;distribution.Ndim=obj.dimension;distribution.G.L=eye(obj.dimension);
+            sampler_history={};
             samples = {}; values = {}; logpdfs = {};
             distributions = {}; log_normalizers = []; counts = [];
             n_calls = 0; converged = false;
@@ -35,11 +35,13 @@ classdef SeMCS
                     x = randn(obj.dimension,obj.n_samples);
                     g = reshape(obj.lsf(x),1,[]); calls = size(x,2);
                 else
-                    if isa(obj.sampler,'HMC') || isa(obj.sampler,'aCS')
-                        [x,g,calls,obj.sampler] = obj.sampler.sample(obj.lsf,distribution,xseed,gseed,chain_length);
-                    else
-                        [x,g,calls] = obj.sampler.sample(obj.lsf,distribution,xseed,gseed,chain_length);
-                    end
+                    lp_seed=-.5*sum(xseed.^2,1)-obj.dimension/2*log(2*pi);
+                    packed=[log(double(distribution.contains(gseed,lp_seed)));lp_seed;lp_seed;gseed];
+                    obj.sampler.BayStc=distribution;
+                    previous_state=distribution.G;
+                    [x,packed,calls,distribution]=obj.sampler.SamGen(xseed,packed,chain_length);
+                    sampler_history{end+1}=struct('initial',previous_state,'final',distribution.G);
+                    x=reshape(x,obj.dimension,[]);g=reshape(packed(4,:,:),1,[]);
                 end
                 if numel(g)~=size(x,2) || any(~isfinite(g))
                     error('SeMCS:LSF','LSF must return one finite value per column.');
@@ -64,8 +66,7 @@ classdef SeMCS
             end
             log_pf = SeMCS.logsumexp(-denominator(all_g<=0));
             out.sampler=class(obj.sampler); out.profile=obj.profile;
-            out.sampler_history={};
-            if isa(obj.sampler,'aCS'),out.sampler_history=obj.sampler.level_history;end
+            out.sampler_history=sampler_history;
             out.samples = samples; out.values = values;
             out.thresholds = cellfun(@(d) [d.g_threshold,d.logpdf_threshold],distributions,'UniformOutput',false);
             out.thresholds = vertcat(out.thresholds{:});

@@ -7,9 +7,10 @@ if nargin<4, sampler_name = 'ES'; end
 if nargin<5, profile='legacy'; end
 switch upper(sampler_name)
     case 'ACS', sampler=aCS();
-    case 'HMC', sampler=HMC(); sampler.carry_state=true;
+    case 'HMC', sampler=HMC();
+    case 'CW_AMH', sampler=CW_aMH();
     case 'ES', sampler=ES(); % public-library coordinatewise implementation
-    otherwise, error('drive_resus:Sampler','Choose ES, aCS or HMC.');
+    otherwise, error('drive_resus:Sampler','Choose CW_aMH, ES, aCS or HMC.');
 end
 rng(seed,'twister');
 switch upper(example)

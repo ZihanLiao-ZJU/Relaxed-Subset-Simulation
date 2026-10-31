@@ -1,45 +1,35 @@
-classdef ES
-    % Supplied coordinatewise angular slice sampler in standard-normal space.
+% Adapted from Zihan Liao's public MATLAB MCMC samplers; repository LICENSE applies.
+classdef ES < MCMCBase
+    % User's componentwise [0,pi] elliptical slice kernel, whitened for L.
     properties
-        max_tries = 20
+        Ntry = 20
     end
     methods
-        function [x,g,n_calls] = sample(obj,lsf,distribution,xseed,gseed,chain_length)
-            [d,nc] = size(xseed);
-            x = zeros(d,nc,chain_length); g = zeros(nc,chain_length);
-            normals = randn(d,nc,chain_length);
-            mh_uniforms = rand(1,nc,chain_length); %#ok<NASGU> Match public indicator-MH random allocation.
-            n_calls = 0;
-            for step = 1:chain_length
-                current = xseed; values = gseed;
-                radius = sqrt(xseed.^2 + normals(:,:,step).^2);
-                ratio = xseed ./ radius; ratio(radius==0) = 0;
-                original_angle = acos(max(-1,min(1,ratio)));
-                pending = 1:nc; lower = zeros(d,nc); upper = pi*ones(d,nc);
-                for attempt = 1:obj.max_tries
-                    angle = lower + rand(d,numel(pending)).*(upper-lower);
-                    proposal = cos(angle).*radius(:,pending);
-                    proposed_g = reshape(lsf(proposal),1,[]);
-                    if numel(proposed_g) ~= numel(pending) || any(~isfinite(proposed_g))
-                        error('ES:LSF','LSF must return one finite value per column.');
-                    end
-                    n_calls = n_calls + numel(pending);
-                    logpdf = -.5*sum(proposal.^2,1)-d/2*log(2*pi);
-                    accepted = distribution.contains(proposed_g,logpdf) | (mh_uniforms(1,pending,step)==0);
-                    current(:,pending(accepted)) = proposal(:,accepted);
-                    values(pending(accepted)) = proposed_g(accepted);
-                    rejected = ~accepted;
-                    if ~any(rejected), break; end
-                    pending = pending(rejected); angle = angle(:,rejected);
-                    lower = lower(:,rejected); upper = upper(:,rejected);
-                    above = angle > original_angle(:,pending);
-                    lower(~above) = angle(~above); upper(above) = angle(above);
+        function obj=ES(b)
+            if nargin<1, b=[]; end
+            obj@MCMCBase(b);
+        end
+        function [u,y,Ncal,b]=SamGen(obj,varargin)
+            [b,u0,y0,Ncal,save,L,Nc,Ns]=obj.prepare(varargin{:});
+            d=b.Ndim; z0=L\u0; u=zeros(d,Nc,Ns); y=zeros(b.Nfun,Nc,Ns);
+            v=randn(d,Nc,Ns); p=rand(1,Nc,Ns);
+            for k=1:Ns
+                if k==1 && save, u(:,:,k)=u0; y(:,:,k)=y0; continue; end
+                R=sqrt(z0.^2+v(:,:,k).^2); ratio=zeros(size(z0));
+                nz=R>0; ratio(nz)=z0(nz)./R(nz); oldangle=acos(max(-1,min(1,ratio)));
+                ids=1:Nc; lo=zeros(d,Nc); hi=pi*ones(d,Nc); z=z0;
+                u(:,:,k)=u0; y(:,:,k)=y0;
+                for j=1:obj.Ntry
+                    angle=lo+(hi-lo).*rand(d,numel(ids)); proposed=cos(angle).*R(:,ids);
+                    proposal=L*proposed; [b,yp,nn]=obj.evaluate(b,proposal); Ncal=Ncal+nn;
+                    rej=obj.reject(yp(1,:),y0(1,ids),p(1,ids,k)); yes=~rej;
+                    z(:,ids(yes))=proposed(:,yes); u(:,ids(yes),k)=proposal(:,yes); y(:,ids(yes),k)=yp(:,yes);
+                    if ~any(rej), break; end
+                    ids=ids(rej); angle=angle(:,rej); lo=lo(:,rej); hi=hi(:,rej);
+                    upper=angle>oldangle(:,ids); lo(~upper)=angle(~upper); hi(upper)=angle(upper);
                 end
-                x(:,:,step) = current; g(:,step) = values(:);
-                % Accepted states must advance even when other chains hit the cap.
-                xseed = current; gseed = values;
+                z0=z; u0=u(:,:,k); y0=y(:,:,k);
             end
-            x = reshape(x,d,[]); g = reshape(g,1,[]);
         end
     end
 end

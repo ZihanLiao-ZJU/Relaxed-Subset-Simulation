@@ -1,6 +1,12 @@
 classdef ReSuS
     % Hybrid LSF-or-low-density intermediate distribution for Re-SuS.
     properties
+        lsf
+        Ndim
+        Nfun = 4
+        Ncal = 0
+        Y
+        G = struct()
         profile = 'legacy'
         g_threshold = Inf
         logpdf_threshold = Inf
@@ -11,6 +17,18 @@ classdef ReSuS
             if nargin > 1, obj.logpdf_threshold = logpdf_threshold; end
             if nargin > 2, obj.profile=profile; end
             if ~any(strcmp(obj.profile,{'legacy','paper'})), error('ReSuS:Profile','Choose legacy or paper.'); end
+        end
+        function obj = EvlY(obj,u)
+            values=reshape(obj.lsf(u),1,[]);
+            assert(numel(values)==size(u,2) && all(isfinite(values)), 'LSF must return one finite value per column');
+            obj.Y=[-.5*sum(u.^2,1)-obj.Ndim/2*log(2*pi);values];
+            obj.Ncal=size(u,2);
+        end
+        function value = EvlLKF(obj)
+            value=log(double(obj.contains(obj.Y(2,:),obj.Y(1,:))));
+        end
+        function value = EvlPDF(obj)
+            value=obj.Y(1,:);
         end
         function mask = contains(obj, g, logpdf)
             mask = (g <= obj.g_threshold) | (logpdf <= obj.logpdf_threshold);

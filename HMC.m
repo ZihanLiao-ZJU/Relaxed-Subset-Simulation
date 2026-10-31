@@ -1,41 +1,42 @@
-classdef HMC
-    % Rejection-based exact Gaussian HMC, with paper acceptance adaptation.
-    % Initial time and batch count are explicit implementation choices.
+% Adapted from Zihan Liao's public MATLAB MCMC samplers; repository LICENSE applies.
+classdef HMC < MCMCBase
+    % Exact Gaussian-reference HMC rotation with likelihood MH correction.
+    % Rejection-based Gaussian HMC, not arbitrary-potential gradient HMC.
     properties
-        initial_time = pi/4
-        n_groups = 5
-        carry_state = true
-        current_time = []
+        InitialTime = pi/4
+        NumIte = 5
+        Adapt = true
     end
     methods
-        function [x,g,n_calls,obj] = sample(obj,lsf,distribution,xseed,gseed,chain_length)
-            [d,nc]=size(xseed); current=xseed; values=reshape(gseed,1,[]);
-            x=zeros(d,nc,chain_length); g=zeros(nc,chain_length); n_calls=0;
-            momenta=randn(d,nc,chain_length); time=obj.initial_time;
-            if obj.carry_state && ~isempty(obj.current_time), time=obj.current_time; end
-            group_size=max(ceil(nc/obj.n_groups),1);
-            for group=1:obj.n_groups
-                ids=(group-1)*group_size+1:min(group*group_size,nc);
-                if isempty(ids), continue; end
-                accepted_count=0;
-                for step=1:chain_length
-                    proposal=current(:,ids)*cos(time)+momenta(:,ids,step)*sin(time);
-                    proposed_g=reshape(lsf(proposal),1,[]);
-                    if numel(proposed_g)~=numel(ids) || any(~isfinite(proposed_g))
-                        error('HMC:LSF','LSF must return one finite value per column.');
-                    end
-                    lp=-.5*sum(proposal.^2,1)-d/2*log(2*pi);
-                    accepted=distribution.contains(proposed_g,lp);
-                    current(:,ids(accepted))=proposal(:,accepted); values(ids(accepted))=proposed_g(accepted);
-                    x(:,ids,step)=current(:,ids); g(ids,step)=values(ids)';
-                    accepted_count=accepted_count+sum(accepted); n_calls=n_calls+numel(ids);
+        function obj=HMC(b)
+            if nargin<1, b=[]; end
+            obj@MCMCBase(b);
+        end
+        function [u,y,Ncal,b]=SamGen(obj,varargin)
+            [b,u0,y0,Ncal,save,L,Nc,Ns]=obj.prepare(varargin{:});
+            d=b.Ndim; u=zeros(d,Nc,Ns); y=zeros(b.Nfun,Nc,Ns);
+            v=reshape(L*reshape(randn(d,Nc,Ns),d,[]),d,Nc,Ns); p=rand(1,Nc,Ns);
+            time=obj.state(b,'HMC_time',obj.InitialTime);
+            if ~isscalar(time)||~isfinite(time)||time<=0||time>pi/2, error('HMC:State','G.HMC_time must lie in (0,pi/2].'); end
+            width=max(ceil(Nc/obj.NumIte),1);
+            for start=1:width:Nc
+                ids=start:min(start+width-1,Nc); count=0; attempts=0;
+                for k=1:Ns
+                    if k==1 && save, u(:,ids,k)=u0(:,ids); y(:,ids,k)=y0(:,ids); continue; end
+                    proposal=cos(time)*u0(:,ids)+sin(time)*v(:,ids,k);
+                    [b,yp,nn]=obj.evaluate(b,proposal); Ncal=Ncal+nn;
+                    rej=obj.reject(yp(1,:),y0(1,ids),p(1,ids,k)); yes=~rej;
+                    u0(:,ids(yes))=proposal(:,yes); y0(:,ids(yes))=yp(:,yes);
+                    u(:,ids,k)=u0(:,ids); y(:,ids,k)=y0(:,ids);
+                    count=count+sum(yes); attempts=attempts+numel(ids);
                 end
-                rate=accepted_count/(numel(ids)*chain_length);
-                if rate<0.3, time=asin(min(1,sin(time)*exp((rate-0.3)/2)));
-                elseif rate>0.5, time=asin(min(1,sin(time)*exp((rate-0.5)/2))); end
+                if attempts>0 && obj.Adapt
+                    rate=count/attempts;
+                    if rate<.3, time=asin(min(1,sin(time)*exp((rate-.3)/2)));
+                    elseif rate>.5, time=asin(min(1,sin(time)*exp((rate-.5)/2))); end
+                end
             end
-            if obj.carry_state, obj.current_time=time; end
-            x=reshape(x,d,[]); g=reshape(g,1,[]);
+            b.G.HMC_time=time;
         end
     end
 end

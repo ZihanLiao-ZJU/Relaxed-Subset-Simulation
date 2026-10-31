@@ -1,45 +1,39 @@
-classdef aCS
-    % Public-library conditional sampler: sigma0=1, persistent adaptive lambda.
+% Adapted from Zihan Liao's public MATLAB MCMC samplers; repository LICENSE applies.
+classdef aCS < MCMCBase
+    % sigma0=1; updated lambda is returned in b.G.lambda across levels.
     properties
-        initial_lambda = 0.6
-        target_acceptance = 0.44
-        n_groups = 5
-        current_lambda = []
-        level_history = {}
+        Lambda = 0.6
+        AcpOpt = 0.44
+        NumIte = 5
+        Adapt = true
     end
     methods
-        function [x,g,n_calls,obj] = sample(obj,lsf,distribution,xseed,gseed,chain_length)
-            [d,nc]=size(xseed); current=xseed; values=reshape(gseed,1,[]);
-            x=zeros(d,nc,chain_length); g=zeros(nc,chain_length); n_calls=0;
-            normals=randn(d,nc,chain_length);
-            uniforms=rand(nc,chain_length); %#ok<NASGU> source indicator-MH allocation
-            sigma0=1; lambda=obj.initial_lambda;
-            if ~isempty(obj.current_lambda), lambda=obj.current_lambda; end
-            initial_lambda=lambda; updates=struct('group',{},'acceptance',{},'final_lambda',{});
-            group_size=max(ceil(nc/obj.n_groups),1);
-            for group=1:obj.n_groups
-                ids=(group-1)*group_size+1:min(group*group_size,nc);
-                if isempty(ids), continue; end
-                sigma=min(lambda*sigma0,1); rho=sqrt(1-sigma.^2); accepted_count=0;
-                for step=1:chain_length
-                    proposal=rho.*current(:,ids)+sigma.*normals(:,ids,step);
-                    proposed_g=reshape(lsf(proposal),1,[]);
-                    if numel(proposed_g)~=numel(ids) || any(~isfinite(proposed_g))
-                        error('aCS:LSF','LSF must return one finite value per column.');
-                    end
-                    lp=-.5*sum(proposal.^2,1)-d/2*log(2*pi);
-                    accepted=distribution.contains(proposed_g,lp) | (uniforms(ids,step)'==0);
-                    current(:,ids(accepted))=proposal(:,accepted); values(ids(accepted))=proposed_g(accepted);
-                    x(:,ids,step)=current(:,ids); g(ids,step)=values(ids)';
-                    accepted_count=accepted_count+sum(accepted); n_calls=n_calls+numel(ids);
+        function obj=aCS(b)
+            if nargin<1, b=[]; end
+            obj@MCMCBase(b);
+        end
+        function [u,y,Ncal,b]=SamGen(obj,varargin)
+            [b,u0,y0,Ncal,save,L,Nc,Ns]=obj.prepare(varargin{:});
+            d=b.Ndim; u=zeros(d,Nc,Ns); y=zeros(b.Nfun,Nc,Ns);
+            v=reshape(L*reshape(randn(d,Nc,Ns),d,[]),d,Nc,Ns); p=rand(1,Nc,Ns);
+            lambda=obj.state(b,'lambda',obj.Lambda);
+            if ~isscalar(lambda)||~isfinite(lambda)||lambda<=0, error('aCS:State','G.lambda must be finite and positive.'); end
+            width=max(ceil(Nc/obj.NumIte),1); group=0;
+            for start=1:width:Nc
+                group=group+1; ids=start:min(start+width-1,Nc);
+                sigma=min(lambda,1); rho=sqrt(1-sigma^2); count=0; attempts=0;
+                for k=1:Ns
+                    if k==1 && save, u(:,ids,k)=u0(:,ids); y(:,ids,k)=y0(:,ids); continue; end
+                    proposal=rho*u0(:,ids)+sigma*v(:,ids,k);
+                    [b,yp,nn]=obj.evaluate(b,proposal); Ncal=Ncal+nn;
+                    rej=obj.reject(yp(1,:),y0(1,ids),p(1,ids,k)); yes=~rej;
+                    u0(:,ids(yes))=proposal(:,yes); y0(:,ids(yes))=yp(:,yes);
+                    u(:,ids,k)=u0(:,ids); y(:,ids,k)=y0(:,ids);
+                    count=count+sum(yes); attempts=attempts+numel(ids);
                 end
-                rate=accepted_count/(numel(ids)*chain_length);
-                lambda=exp(log(lambda)+(rate-obj.target_acceptance)/sqrt(group));
-                updates(end+1)=struct('group',group,'acceptance',rate,'final_lambda',lambda);
+                if attempts>0 && obj.Adapt, lambda=exp(log(lambda)+(count/attempts-obj.AcpOpt)/sqrt(group)); end
             end
-            obj.current_lambda=lambda;
-            obj.level_history{end+1}=struct('initial_lambda',initial_lambda,'final_lambda',lambda,'groups',updates);
-            x=reshape(x,d,[]); g=reshape(g,1,[]);
+            b.G.lambda=lambda;
         end
     end
 end
