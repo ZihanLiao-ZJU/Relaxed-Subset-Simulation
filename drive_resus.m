@@ -16,7 +16,8 @@ rng(seed,'twister');
 switch upper(example)
     case 'A', lsf = @LSF_2D_PiecewiseLinear;
     case 'B', lsf = @LSF_2D_ChangingTopological;
-    otherwise, error('drive_resus:Example','Choose example A or B.');
+    case 'C', lsf = @LSF_2D_LinearLog;
+    otherwise, error('drive_resus:Example','Choose example A, B or C.');
 end
 engine = SeMCS(lsf,2,n_samples,0.1,100,sampler,profile);
 out = engine.run();
