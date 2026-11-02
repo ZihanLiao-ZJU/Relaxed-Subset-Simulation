@@ -1,5 +1,5 @@
 classdef SeMCS
-    % Sequential Monte Carlo orchestration with historical balance-heuristic MIS.
+    % Sequential Monte Carlo orchestration with Re-SuS probability products (Eq. 24).
     properties
         lsf
         dimension
@@ -26,7 +26,7 @@ classdef SeMCS
             distribution = ReSuS(Inf,Inf,obj.profile);
             distribution.lsf=obj.lsf;distribution.Ndim=obj.dimension;distribution.G.L=eye(obj.dimension);
             sampler_history={};
-            samples = {}; values = {}; logpdfs = {};
+            samples = {}; values = {}; conditional_probabilities = [];
             distributions = {}; log_normalizers = []; counts = [];
             n_calls = 0; converged = false;
             next_log_normalizer = 0;
@@ -48,23 +48,27 @@ classdef SeMCS
                 end
                 n_calls = n_calls+calls;
                 logpdf = -.5*sum(x.^2,1)-obj.dimension/2*log(2*pi);
-                samples{level} = x; values{level} = g; logpdfs{level} = logpdf;
+                samples{level} = x; values{level} = g;
                 distributions{level} = distribution;
                 log_normalizers(level) = next_log_normalizer;
                 counts(level) = numel(g);
                 next = distribution.update(g,logpdf,obj.p0);
-                all_g = [values{:}]; all_logpdf = [logpdfs{:}];
-                denominator = SeMCS.log_denominator(distributions,log_normalizers,counts,all_g,all_logpdf);
                 if next.converged(), converged = true; break; end
                 if level == obj.max_levels, break; end
-                mask = next.contains(all_g,all_logpdf);
-                if ~any(mask), error('SeMCS:Support','Intermediate distribution has no supported samples.'); end
-                next_log_normalizer = SeMCS.logsumexp(-denominator(mask));
+                % Eq. (23): use this level's actual sample count, not target N.
+                probability = mean(next.contains(g,logpdf));
+                if probability <= 0, error('SeMCS:Support','Intermediate distribution has no supported samples.'); end
+                conditional_probabilities(end+1) = probability;
+                next_log_normalizer = log_normalizers(level)+log(probability);
                 [xseed,gseed,chain_length] = next.select_seeds(x,g,logpdf,obj.n_samples);
                 if isempty(gseed), error('SeMCS:Seeds','No admissible seeds.'); end
                 distribution = next;
             end
-            log_pf = SeMCS.logsumexp(-denominator(all_g<=0));
+            % Eq. (21)/(24): final true-failure factor, no extra hybrid factor.
+            final_probability = mean(g<=0);
+            conditional_probabilities(end+1) = final_probability;
+            log_pf = log_normalizers(end)+log(final_probability);
+            out.estimator = 'product'; out.conditional_probabilities = conditional_probabilities;
             out.sampler=class(obj.sampler); out.profile=obj.profile;
             out.sampler_history=sampler_history;
             out.samples = samples; out.values = values;
@@ -73,22 +77,6 @@ classdef SeMCS
             out.log_normalizers = log_normalizers; out.sample_counts = counts;
             out.n_calls = n_calls; out.converged = converged;
             out.log_pf = log_pf; out.pf = exp(log_pf);
-        end
-    end
-    methods(Static)
-        function result = logsumexp(values)
-            if isempty(values), result = -Inf; return; end
-            peak = max(values);
-            if isinf(peak), result = peak; else, result = peak+log(sum(exp(values-peak))); end
-        end
-        function denominator = log_denominator(distributions,logz,counts,g,logpdf)
-            denominator = -Inf(size(g));
-            for j=1:numel(distributions)
-                mask = distributions{j}.contains(g,logpdf);
-                term = log(counts(j))-logz(j);
-                previous = denominator(mask); peak = max(previous,term);
-                denominator(mask) = peak+log(exp(previous-peak)+exp(term-peak));
-            end
         end
     end
 end
