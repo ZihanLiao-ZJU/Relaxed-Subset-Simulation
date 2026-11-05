@@ -25,7 +25,6 @@ classdef SeMCS
             validateattributes(obj.p0,{'numeric'},{'scalar','>',0,'<',1});
             distribution = ReSuS(Inf,Inf,obj.profile);
             distribution.lsf=obj.lsf;distribution.Ndim=obj.dimension;distribution.G.L=eye(obj.dimension);
-            sampler_history={};
             samples = {}; values = {}; conditional_probabilities = [];
             distributions = {}; log_normalizers = []; counts = [];
             n_calls = 0; converged = false;
@@ -38,9 +37,7 @@ classdef SeMCS
                     lp_seed=logGauss(xseed,obj.dimension);
                     packed=[log(double(distribution.contains(gseed,lp_seed)));lp_seed;lp_seed;gseed];
                     obj.sampler.BayStc=distribution;
-                    previous_state=distribution.G;
                     [x,packed,calls,distribution]=obj.sampler.SamGen(xseed,packed,chain_length);
-                    sampler_history{end+1}=struct('initial',previous_state,'final',distribution.G);
                     x=reshape(x,obj.dimension,[]);g=reshape(packed(4,:,:),1,[]);
                 end
                 if numel(g)~=size(x,2) || any(~isfinite(g))
@@ -68,7 +65,6 @@ classdef SeMCS
             [conditional_probabilities,log_pf,pf] = ReSuSProduct(g,conditional_probabilities,log_normalizers);
             out.estimator = 'product'; out.conditional_probabilities = conditional_probabilities;
             out.sampler=class(obj.sampler); out.profile=obj.profile;
-            out.sampler_history=sampler_history;
             out.samples = samples; out.values = values;
             out.thresholds = cellfun(@(d) [d.g_threshold,d.logpdf_threshold],distributions,'UniformOutput',false);
             out.thresholds = vertcat(out.thresholds{:});

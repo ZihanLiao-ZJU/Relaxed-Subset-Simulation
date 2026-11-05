@@ -18,7 +18,7 @@ Run from this repository's root:
 out = drive_resus('A',1000,411,'ES','paper');
 out_c = drive_resus('C',1000,411,'aCS','paper');
 ```
-The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual `n_calls`, `converged`, sampled levels and `sampler_history`. `converged = false` is an unfinished run, not a validated estimate. `estimator` identifies this revision as `product`.
+The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual `n_calls`, `converged`, and sampled levels. `converged = false` is an unfinished run, not a validated estimate. `estimator` identifies this revision as `product`.
 
 ## Examples and samplers
 | Example | Model / dimension | Driver selector |
