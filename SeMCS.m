@@ -1,76 +1,74 @@
 classdef SeMCS
-    % Sequential Monte Carlo orchestration with Re-SuS probability products (Eq. 24).
+    % Common sequential sampling loop; each model owns its level policies.
     properties
-        lsf
-        dimension
-        n_samples = 5000
-        p0 = 0.1
-        max_levels = 100
-        sampler = ES()
-        profile = 'legacy'
+        Sampler
+        IntBay
+        NumSam = 1000
+        ConPrb = 0.1
+        MaxIte = 10000
+        G = {}
+        Verbose = true
     end
     methods
-        function obj = SeMCS(lsf,dimension,n_samples,p0,max_levels,sampler,profile)
-            obj.lsf = lsf; obj.dimension = dimension;
-            if nargin>2, obj.n_samples = n_samples; end
-            if nargin>3, obj.p0 = p0; end
-            if nargin>4, obj.max_levels = max_levels; end
-            if nargin>5, obj.sampler = sampler; end
-            if nargin>6, obj.profile = profile; end
+        function obj=SeMCS(sampler)
+            obj.Sampler=sampler;obj.IntBay=sampler.BayStc;
+            defaults=obj.IntBay.run_defaults();
+            for name=fieldnames(defaults)',obj.(name{1})=defaults.(name{1});end
         end
-        function out = run(obj)
-            validateattributes(obj.dimension,{'numeric'},{'scalar','integer','positive'});
-            validateattributes(obj.n_samples,{'numeric'},{'scalar','integer','>=',2});
-            validateattributes(obj.max_levels,{'numeric'},{'scalar','integer','positive'});
-            validateattributes(obj.p0,{'numeric'},{'scalar','>',0,'<',1});
-            distribution = ReSuS(Inf,Inf,obj.profile);
-            distribution.lsf=obj.lsf;distribution.Ndim=obj.dimension;distribution.G.L=eye(obj.dimension);
-            samples = {}; values = {}; conditional_probabilities = [];
-            distributions = {}; log_normalizers = []; counts = [];
-            n_calls = 0; converged = false;
-            next_log_normalizer = 0;
-            for level = 1:obj.max_levels
-                if level == 1
-                    x = randn(obj.dimension,obj.n_samples);
-                    g = reshape(obj.lsf(x),1,[]); calls = size(x,2);
-                else
-                    lp_seed=logGauss(xseed,obj.dimension);
-                    packed=[log(double(distribution.contains(gseed,lp_seed)));lp_seed;lp_seed;gseed];
-                    obj.sampler.BayStc=distribution;
-                    [x,packed,calls,distribution]=obj.sampler.SamGen(xseed,packed,chain_length);
-                    x=reshape(x,obj.dimension,[]);g=reshape(packed(4,:,:),1,[]);
-                end
-                if numel(g)~=size(x,2) || any(~isfinite(g))
-                    error('SeMCS:LSF','LSF must return one finite value per column.');
-                end
-                n_calls = n_calls+calls;
-                logpdf = logGauss(x,obj.dimension);
-                samples{level} = x; values{level} = g;
-                distributions{level} = distribution;
-                log_normalizers(level) = next_log_normalizer;
-                counts(level) = numel(g);
-                next = distribution.update(g,logpdf,obj.p0);
-                if next.converged(), converged = true; break; end
-                if level == obj.max_levels, break; end
-                % Eq. (23): use this level's actual sample count, not target N.
-                probability = mean(next.contains(g,logpdf));
-                if probability <= 0, error('SeMCS:Support','Intermediate distribution has no supported samples.'); end
-                conditional_probabilities(end+1) = probability;
-                next_log_normalizer = log_normalizers(level)+log(probability);
-                [xseed,gseed,chain_length] = next.select_seeds(x,g,logpdf,obj.n_samples);
-                if isempty(gseed), error('SeMCS:Seeds','No admissible seeds.'); end
-                distribution = next;
+        function out=RunIte(obj)
+            c=obj.IntBay.start_run(obj,obj.Sampler);
+            for level=1:c.limit
+                [c,r]=c.model.sample_level(c,level);
+                c=c.model.advance_level(c,r,level);
+                [done,c]=c.model.run_complete(c,r,'before_seeds');
+                if done,break;end
+                c=c.model.select_run_seeds(c,r,level);
+                [done,c]=c.model.run_complete(c,r,'after_seeds');
+                if done,break;end
             end
-            % Eq. (21)/(24): final true-failure factor, no extra hybrid factor.
-            [conditional_probabilities,log_pf,pf] = ReSuSProduct(g,conditional_probabilities,log_normalizers);
-            out.estimator = 'product'; out.conditional_probabilities = conditional_probabilities;
-            out.sampler=class(obj.sampler); out.profile=obj.profile;
-            out.samples = samples; out.values = values;
-            out.thresholds = cellfun(@(d) [d.g_threshold,d.logpdf_threshold],distributions,'UniformOutput',false);
-            out.thresholds = vertcat(out.thresholds{:});
-            out.log_normalizers = log_normalizers; out.sample_counts = counts;
-            out.n_calls = n_calls; out.converged = converged;
-            out.log_pf = log_pf; out.pf = pf;
+            out=c.model.finish_run(c);
+        end
+    end
+    methods(Static)
+        function c=start_context(owner,sampler,limit,mode)
+            model=owner.IntBay;targets=zeros(owner.MaxIte+1,1);
+            if numel(owner.NumSam)>1,targets(1:numel(owner.NumSam))=owner.NumSam;
+            else,targets(:)=owner.NumSam;end
+            if ~isempty(owner.G),model.G=SeMCS.prescribed_state(model.G,owner.G{1},true,mode);end
+            sampler.BayStc=model;
+            c=struct('owner',owner,'model',model,'sampler',sampler,'limit',limit, ...
+                'targets',targets,'nc',targets(1),'steps',1,'xs',[],'ys',[], ...
+                'x',{{}},'y',{{}},'g',{{model.G}},'Nsam',[],'Nsze',zeros(0,2),'Ncal',[],'complete',false);
+        end
+        function [c,r]=sample_context(c,level)
+            if level==1,[x,y,calls,model]=c.sampler.SamGen(c.nc,c.steps);
+            else,[x,y,calls,model]=c.sampler.SamGen(c.xs,c.ys,c.steps);end
+            c.model=model;
+            r=struct('x',x,'y',y,'calls',calls,'count',c.nc*c.steps,'shape',[c.nc,c.steps]);
+            c.x{level,1}=x;c.y{level,1}=y;c.Nsam(level,1)=r.count;
+            c.Nsze(level,:)=r.shape;c.Ncal(level,1)=calls;
+        end
+        function out=pack_output(c)
+            out=struct('x',{c.x},'y',{c.y},'g',{c.g},'Nsam',c.Nsam, ...
+                'Nsze',c.Nsze,'Ncal',c.Ncal,'Nite',numel(c.x),'flg_cvg',c.complete,'intBay',c.model);
+        end
+        function next=prescribed_state(old,preset,initial,mode)
+            if ~isstruct(preset),next=old;next.parameters=preset;
+            elseif strcmp(mode,'replace'),next=preset;
+            else,next=SeMCS.overlay(old,preset);end
+            if ~initial
+                for key={'lambda','HMC_time'}
+                    name=key{1};if isfield(old,name),next.(name)=old.(name);end
+                end
+            end
+        end
+        function result=overlay(result,patch)
+            for key=fieldnames(patch)'
+                name=key{1};value=patch.(name);
+                if isfield(result,name)&&isstruct(result.(name))&&isstruct(value)
+                    result.(name)=SeMCS.overlay(result.(name),value);
+                else,result.(name)=value;end
+            end
         end
     end
 end

@@ -24,8 +24,9 @@ switch upper(example)
     case 'C', lsf = @LSF_2D_LinearLog;
     otherwise, error('drive_resus:Example','Choose example A, B or C.');
 end
-engine = SeMCS(lsf,2,n_samples,0.1,100,sampler,profile);
-out = engine.run();
+model=ReSuS(Inf,Inf,profile);model.lsf=lsf;model.Ndim=2;sampler.BayStc=model;
+engine=SeMCS(sampler);engine.NumSam=n_samples;engine.ConPrb=0.1;engine.MaxIte=100;
+raw=engine.RunIte();out=ReSuSProduct(raw);
 fprintf('%s: Pf = %.8g, levels = %d, LSF evaluations = %d, converged = %d\n', ...
     upper(example),out.pf,numel(out.sample_counts),out.n_calls,out.converged);
 end

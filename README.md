@@ -53,9 +53,15 @@ $$
 
 The empty product is 1 when $m=0$. At normal termination, the *next* LSF threshold has reached zero or below; the final factor is evaluated on the last **actually sampled** domain, whose LSF threshold is still positive. No additional unsampled hybrid-event factor is included. `conditional_probabilities` stores the transition factors followed by the true-failure factor; `log_normalizers` stores cumulative log-normalizer estimates. `ReSuSProduct` performs this native postprocessing rather than balance-heuristic MIS. All averages use actual level sizes, and MCMC correlation and adaptive thresholds remain relevant to uncertainty.
 
+## Common sequential sampling interface
+
+All five MATLAB toolboxes include the same `SeMCS.m`: construct `simulation = SeMCS(sampler)`, set `NumSam`, `ConPrb`, `MaxIte`, and `Verbose`, then call `raw = simulation.RunIte()`. The model in `sampler.BayStc` supplies initialization, level updates, seed selection, and the order of its original stopping checks. The framework stores `x`, `y`, and the evolving distribution states `g`; the estimator processes this history separately.
+
+Fixed MCMC settings, including initial step sizes, acceptance targets, adaptation-group counts and ES options, are properties of the sampler. Values that evolve, such as the adapted `lambda` and HMC trajectory time, are stored in the model's `G`. Different toolboxes retain their own numerical settings. `G.active` carries GSuS's evolving active-response mask together with each historical distribution state.
+
 ## Structure
 - `drive_resus.m` — example selection, settings and execution.
-- `SeMCS.m` — iteration and stored levels; `Support-Fun/ReSuSProduct.m` — native probability-product postprocessing.
+- `SeMCS.m` — the common sampler-driven iteration and stored levels; `Support-Fun/ReSuSProduct.m` — native probability-product postprocessing invoked by the driver.
 - `ReSuS.m` — hybrid distributions, thresholds, seed selection and convergence.
 - `Limit-state-functions/` — `LSF_2D_PiecewiseLinear.m`, `LSF_2D_ChangingTopological.m`, `LSF_2D_LinearLog.m`, examples A–C.
 - `MCMC-samplers/` — `MCMCBase.m`, `CW_aMH.m`, `aCS.m`, `HMC.m`, `ES.m`, the locally included sampling interface and kernels.
@@ -81,7 +87,7 @@ The returned result includes `pf`, `log_pf`, `conditional_probabilities`, actual
 - Defaults are unchanged: example A, N=5000, seed 1, p0=0.1 and `legacy` profile. Explicit `paper` runs above use N=1000; the level budget defaults to 100.
 - `legacy` retains midpoint thresholds and strict seed eligibility. `paper` uses order-statistic thresholds, inclusive eligibility and Algorithm 1 chain-count rounding. **Both profiles now use the product estimator**; selecting `paper` does not replace the unified ES with a historical ESS kernel.
 - C uses the paper's unscaled `5-x1` branch, not the `0.03` scale present in an earlier supplied file. No D–H models are bundled.
-- The `SeMCS` constructor accepts a model and its dimension. Models return one finite LSF value per column of a dimension-by-sample input. Custom physical/nonnormal models must be mapped to Gaussian/Nataf reference coordinates; common kernels are not restricted to 2D.
+- The `SeMCS` constructor accepts a bound sampler; its model provides the LSF and dimension. Models return one finite LSF value per column of a dimension-by-sample input. Custom physical/nonnormal models must be mapped to Gaussian/Nataf reference coordinates; common kernels are not restricted to 2D.
 
 ## Dependencies
 - MATLAB with `classdef` and implicit expansion (R2016b or later); no Statistics Toolbox is needed for the bundled examples.
