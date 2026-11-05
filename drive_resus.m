@@ -1,5 +1,10 @@
 function out = drive_resus(example,n_samples,seed,sampler_name,profile)
 % Run one Re-SuS probability-product estimate. Example: out = drive_resus('A',1000,1,'ES').
+root = fileparts(mfilename('fullpath'));
+addpath(fullfile(root,'MCMC-samplers'));
+addpath(fullfile(root,'Limit-state-functions'));
+addpath(fullfile(root,'Support-Fun'));
+addpath(fullfile(root,'Operations on Logarithmic values'));
 if nargin<1, example = 'A'; end
 if nargin<2, n_samples = 5000; end
 if nargin<3, seed = 1; end

@@ -35,7 +35,7 @@ classdef SeMCS
                     x = randn(obj.dimension,obj.n_samples);
                     g = reshape(obj.lsf(x),1,[]); calls = size(x,2);
                 else
-                    lp_seed=-.5*sum(xseed.^2,1)-obj.dimension/2*log(2*pi);
+                    lp_seed=logGauss(xseed,obj.dimension);
                     packed=[log(double(distribution.contains(gseed,lp_seed)));lp_seed;lp_seed;gseed];
                     obj.sampler.BayStc=distribution;
                     previous_state=distribution.G;
@@ -47,7 +47,7 @@ classdef SeMCS
                     error('SeMCS:LSF','LSF must return one finite value per column.');
                 end
                 n_calls = n_calls+calls;
-                logpdf = -.5*sum(x.^2,1)-obj.dimension/2*log(2*pi);
+                logpdf = logGauss(x,obj.dimension);
                 samples{level} = x; values{level} = g;
                 distributions{level} = distribution;
                 log_normalizers(level) = next_log_normalizer;
@@ -65,9 +65,7 @@ classdef SeMCS
                 distribution = next;
             end
             % Eq. (21)/(24): final true-failure factor, no extra hybrid factor.
-            final_probability = mean(g<=0);
-            conditional_probabilities(end+1) = final_probability;
-            log_pf = log_normalizers(end)+log(final_probability);
+            [conditional_probabilities,log_pf,pf] = ReSuSProduct(g,conditional_probabilities,log_normalizers);
             out.estimator = 'product'; out.conditional_probabilities = conditional_probabilities;
             out.sampler=class(obj.sampler); out.profile=obj.profile;
             out.sampler_history=sampler_history;
@@ -76,7 +74,7 @@ classdef SeMCS
             out.thresholds = vertcat(out.thresholds{:});
             out.log_normalizers = log_normalizers; out.sample_counts = counts;
             out.n_calls = n_calls; out.converged = converged;
-            out.log_pf = log_pf; out.pf = exp(log_pf);
+            out.log_pf = log_pf; out.pf = pf;
         end
     end
 end

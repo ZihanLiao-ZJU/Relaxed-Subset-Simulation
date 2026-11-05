@@ -21,7 +21,7 @@ classdef ReSuS
         function obj = EvlY(obj,u)
             values=reshape(obj.lsf(u),1,[]);
             assert(numel(values)==size(u,2) && all(isfinite(values)), 'LSF must return one finite value per column');
-            obj.Y=[-.5*sum(u.^2,1)-obj.Ndim/2*log(2*pi);values];
+            obj.Y=[logGauss(u,obj.Ndim);values];
             obj.Ncal=size(u,2);
         end
         function value = EvlLKF(obj)

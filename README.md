@@ -5,10 +5,11 @@ Relaxed subset simulation estimates failure probabilities with hybrid LSF / Gaus
 
 ## Structure
 - `drive_resus.m` — example selection, settings and execution.
-- `SeMCS.m` — iteration, stored levels and probability-product estimation.
+- `SeMCS.m` — iteration and stored levels; `Support-Fun/ReSuSProduct.m` — native probability-product postprocessing.
 - `ReSuS.m` — hybrid distributions, thresholds, seed selection and convergence.
-- `LSF_2D_PiecewiseLinear.m`, `LSF_2D_ChangingTopological.m`, `LSF_2D_LinearLog.m` — examples A–C.
-- `MCMCBase.m`, `CW_aMH.m`, `aCS.m`, `HMC.m`, `ES.m` — locally included sampling interface and kernels.
+- `Limit-state-functions/` — `LSF_2D_PiecewiseLinear.m`, `LSF_2D_ChangingTopological.m`, `LSF_2D_LinearLog.m`, examples A–C.
+- `MCMC-samplers/` — `MCMCBase.m`, `CW_aMH.m`, `aCS.m`, `HMC.m`, `ES.m`, the locally included sampling interface and kernels.
+- `Operations on Logarithmic values/logGauss.m` — standard-normal log density used by the framework and model.
 
 ## Quick start
 Run from this repository's root:
