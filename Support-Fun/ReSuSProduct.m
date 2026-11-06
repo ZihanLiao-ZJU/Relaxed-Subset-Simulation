@@ -2,7 +2,8 @@ function out = ReSuSProduct(raw)
     % Native probability-product estimator from the completed sampling history.
     values = cellfun(@(y)reshape(y(4,:,:), 1, []), raw.y, 'UniformOutput', false);
     normalizers = cellfun(@(g)g.log_normalizer, raw.g(1:raw.Nite));
-    factors = raw.conditional_probabilities;
+    factors = cellfun(@(g)g.transition_probability, raw.g(2:raw.Nite));
+    factors = reshape(factors, 1, []);
     final_probability = mean(values{end} <= 0);
     factors(end + 1) = final_probability;
     log_pf = normalizers(end) + log(final_probability);
@@ -10,8 +11,9 @@ function out = ReSuSProduct(raw)
     out.estimator = 'product';
     out.conditional_probabilities = factors;
     out.sampler = raw.sampler;
-    out.profile = raw.profile;
-    out.samples = reshape(raw.x, 1, []);
+    out.profile = raw.intBay.profile;
+    samples = cellfun(@(x)reshape(x, size(x, 1), []), raw.x, 'UniformOutput', false);
+    out.samples = reshape(samples, 1, []);
     out.values = reshape(values, 1, []);
     out.thresholds = cellfun(@(g)[g.g_threshold, g.logpdf_threshold], raw.g(1:raw.Nite), 'UniformOutput', false);
     out.thresholds = vertcat(out.thresholds{:});

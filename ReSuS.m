@@ -1,15 +1,12 @@
 classdef ReSuS
     % Hybrid LSF-or-low-density intermediate distribution for Re-SuS.
-    properties (Constant)
-        RunOptions = struct('NumSam', 5000, 'MaxIte', 100, 'Verbose', false, ...
-            'MaxIteOffset', 0, 'PresetMode', 'overlay', ...
-            'StopBeforeSeeds', true, 'OutputSchema', 'probability_product')
-    end
-
     properties
         lsf
         Ndim
         Nfun = 4
+        Nsam = 5000
+        MaxIte = 100
+        Verbose = false
         Ncal = 0
         Y
         G = struct('g_threshold', Inf, 'logpdf_threshold', Inf)
@@ -106,20 +103,27 @@ classdef ReSuS
 
     methods
 
-        function obj = start_run(obj, n, max_levels, p0, states)
-            % Validate and initialize only this hybrid-domain method.
+        function obj = start_run(obj)
+            % The first samples are drawn directly from the full normal prior.
             validateattributes(obj.Ndim, {'numeric'}, {'scalar', 'integer', 'positive'});
-            validateattributes(n, {'numeric'}, {'scalar', 'integer', '>=', 2});
-            validateattributes(max_levels, {'numeric'}, {'scalar', 'integer', 'positive'});
-            validateattributes(p0, {'numeric'}, {'scalar', '>', 0, '<', 1});
-            if ~isempty(states)
-                obj.G = SeMCS.prescribed_state(obj.G, states{1}, true, 'overlay');
+            peak = -obj.Ndim / 2 * log(2 * pi);
+            if ~(obj.G.g_threshold == Inf || obj.G.logpdf_threshold >= peak)
+                error('ReSuS:InitialSupport', 'Initial hybrid domain must be verifiably the full Gaussian prior.');
+            end
+            if isfield(obj.G, 'L') && ~isequal(obj.G.L, eye(obj.Ndim)) && ~isequal(obj.G.L, 1)
+                error('ReSuS:Reference', 'ReSuS requires the standard-normal reference.');
+            end
+            if isfield(obj.G, 'log_normalizer') && ~isequal(obj.G.log_normalizer, 0)
+                error('ReSuS:InitialNormalizer', 'The full-prior initial log normalizer must be zero.');
             end
             obj.G.L = eye(obj.Ndim);
             obj.G.log_normalizer = 0;
         end
 
         function [x, y, calls, obj] = sample_level(obj, sampler, n, x_seed, g_seed, steps, ite)
+            if ~isequal(obj.G.L, eye(obj.Ndim)) && ~isequal(obj.G.L, 1)
+                error('ReSuS:Reference', 'ReSuS requires the standard-normal reference.');
+            end
             if ite == 1
                 x = randn(obj.Ndim, n);
                 g = reshape(obj.lsf(x), 1, []);
@@ -129,19 +133,23 @@ classdef ReSuS
                 packed = [log(double(obj.contains(g_seed, lp_seed))); lp_seed; lp_seed; g_seed];
                 sampler.BayStc = obj;
                 [x, packed, calls, obj] = sampler.SamGen(x_seed, packed, steps);
-                x = reshape(x, obj.Ndim, []);
                 g = reshape(packed(4,:,:), 1, []);
             end
 
-            if numel(g) ~= size(x, 2) || any(~isfinite(g))
+            flat_x = reshape(x, obj.Ndim, []);
+            if numel(g) ~= size(flat_x, 2) || any(~isfinite(g))
                 error('SeMCS:LSF', 'LSF must return one finite value per column.');
             end
 
-            lp = logGauss(x, obj.Ndim);
+            lp = logGauss(flat_x, obj.Ndim);
             y = [log(double(obj.contains(g, lp))); lp; lp; g];
+            y = reshape(y, 4, size(x, 2), size(x, 3));
         end
 
-        function [x_seed, g_seed, steps, obj, probability] = select_run_seeds(obj, x, y, previous, n)
+        function [x_seed, g_seed, steps, obj] = select_run_seeds(obj, x, y, previous, n)
+            if ~isequal(obj.G.L, eye(obj.Ndim)) && ~isequal(obj.G.L, 1)
+                error('ReSuS:Reference', 'ReSuS requires the standard-normal reference.');
+            end
             values = y(4, :);
             logpdf = y(3, :);
             probability = mean(obj.contains(values, logpdf));
@@ -150,6 +158,7 @@ classdef ReSuS
             end
 
             obj.G.log_normalizer = previous.G.log_normalizer + log(probability);
+            obj.G.transition_probability = probability;
             [x_seed, g_seed, steps] = obj.select_seeds(x, values, logpdf, n);
             if isempty(g_seed)
                 error('SeMCS:Seeds', 'No admissible seeds.');
