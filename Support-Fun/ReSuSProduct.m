@@ -1,11 +1,20 @@
 function out = ReSuSProduct(raw)
     % Native probability-product estimator from the completed sampling history.
     values = cellfun(@(y)reshape(y(4,:,:), 1, []), raw.y, 'UniformOutput', false);
-    normalizers = cellfun(@(g)g.log_normalizer, raw.g(1:raw.Nite));
-    factors = cellfun(@(g)g.transition_probability, raw.g(2:raw.Nite));
-    factors = reshape(factors, 1, []);
+    % Estimate only transitions into distributions that were actually sampled.
+    normalizers = zeros(1, raw.Nite);
+    factors = zeros(1, raw.Nite);
+    for j = 1:raw.Nite-1
+        next = raw.g{j+1};
+        logpdf = reshape(raw.y{j}(3,:,:), 1, []);
+        factors(j) = mean(values{j} <= next.g_threshold | logpdf <= next.logpdf_threshold);
+        if factors(j) <= 0
+            error('ReSuS:Support', 'Intermediate distribution has no supported samples.');
+        end
+        normalizers(j+1) = normalizers(j) + log(factors(j));
+    end
     final_probability = mean(values{end} <= 0);
-    factors(end + 1) = final_probability;
+    factors(end) = final_probability;
     log_pf = normalizers(end) + log(final_probability);
     pf = exp(log_pf);
     out.estimator = 'product';
