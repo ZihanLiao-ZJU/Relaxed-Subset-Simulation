@@ -1,5 +1,11 @@
 classdef ReSuS
     % Hybrid LSF-or-low-density intermediate distribution for Re-SuS.
+    properties (Constant)
+        RunOptions = struct('NumSam', 5000, 'MaxIte', 100, 'Verbose', false, ...
+            'MaxIteOffset', 0, 'PresetMode', 'overlay', 'UpdateOutputs', 1, ...
+            'StopBeforeSeeds', true, 'OutputSchema', 'probability_product')
+    end
+
     properties
         lsf
         Ndim
@@ -100,20 +106,16 @@ classdef ReSuS
 
     methods
 
-        function defaults = run_defaults(~)
-            defaults = struct('NumSam', 5000, 'ConPrb', 0.1, 'MaxIte', 100, 'Verbose', false);
-        end
-
-        function context = start_run(~, owner, sampler)
+        function obj = start_run(obj, owner)
             validateattributes(owner.IntBay.Ndim, {'numeric'}, {'scalar', 'integer', 'positive'});
             validateattributes(owner.NumSam, {'numeric'}, {'scalar', 'integer', '>=', 2});
             validateattributes(owner.MaxIte, {'numeric'}, {'scalar', 'integer', 'positive'});
             validateattributes(owner.ConPrb, {'numeric'}, {'scalar', '>', 0, '<', 1});
-            context = SeMCS.start_context(owner, sampler, owner.MaxIte, 'overlay');
-            context.model.G.L = eye(context.model.Ndim);
-            context.model.G.log_normalizer = 0;
-            context.sampler.BayStc = context.model;
-            context.conditional_probabilities = [];
+            if ~isempty(owner.G)
+                obj.G = SeMCS.prescribed_state(obj.G, owner.G{1}, true, 'overlay');
+            end
+            obj.G.L = eye(obj.Ndim);
+            obj.G.log_normalizer = 0;
         end
 
         function [context, record] = sample_level(~, context, level)
@@ -136,32 +138,7 @@ classdef ReSuS
 
             lp = logGauss(x, context.model.Ndim);
             y = [log(double(context.model.contains(g, lp))); lp; lp; g];
-            context.g{level, 1} = context.model.G;
-            context.x{level, 1} = x;
-            context.y{level, 1} = y;
-            context.Nsam(level, 1) = numel(g);
-            context.Nsze(level,:) = [size(x, 2), 1];
-            context.Ncal(level, 1) = calls;
             record = struct('x', x, 'y', y, 'values', g, 'logpdf', lp, 'calls', calls, 'count', numel(g), 'shape', [size(x, 2), 1]);
-        end
-
-        function context = advance_level(~, context, record, level)
-            context.next = context.model.update(record.values, record.logpdf, context.owner.ConPrb);
-            context.g{level+1, 1} = context.next.G;
-        end
-
-        function [yes, context] = run_complete(~, context, ~, phase)
-            yes = false;
-            if ~strcmp(phase, 'before_seeds')
-                return;
-            end
-
-            if context.next.converged()
-                context.complete = true;
-                yes = true;
-            elseif numel(context.x) == context.limit
-                yes = true;
-            end
         end
 
         function context = select_run_seeds(~, context, record, ~)
@@ -178,14 +155,6 @@ classdef ReSuS
             end
 
             context.model = context.next;
-            context.sampler.BayStc = context.model;
-        end
-
-        function out = finish_run(~, context)
-            out = SeMCS.pack_output(context);
-            out.conditional_probabilities = context.conditional_probabilities;
-            out.sampler = class(context.sampler);
-            out.profile = context.model.profile;
         end
 
     end
