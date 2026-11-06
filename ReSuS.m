@@ -2,7 +2,7 @@ classdef ReSuS
     % Hybrid LSF-or-low-density intermediate distribution for Re-SuS.
     properties (Constant)
         RunOptions = struct('NumSam', 5000, 'MaxIte', 100, 'Verbose', false, ...
-            'MaxIteOffset', 0, 'PresetMode', 'overlay', 'UpdateOutputs', 1, ...
+            'MaxIteOffset', 0, 'PresetMode', 'overlay', ...
             'StopBeforeSeeds', true, 'OutputSchema', 'probability_product')
     end
 
@@ -106,29 +106,30 @@ classdef ReSuS
 
     methods
 
-        function obj = start_run(obj, owner)
-            validateattributes(owner.IntBay.Ndim, {'numeric'}, {'scalar', 'integer', 'positive'});
-            validateattributes(owner.NumSam, {'numeric'}, {'scalar', 'integer', '>=', 2});
-            validateattributes(owner.MaxIte, {'numeric'}, {'scalar', 'integer', 'positive'});
-            validateattributes(owner.ConPrb, {'numeric'}, {'scalar', '>', 0, '<', 1});
-            if ~isempty(owner.G)
-                obj.G = SeMCS.prescribed_state(obj.G, owner.G{1}, true, 'overlay');
+        function obj = start_run(obj, n, max_levels, p0, states)
+            % Validate and initialize only this hybrid-domain method.
+            validateattributes(obj.Ndim, {'numeric'}, {'scalar', 'integer', 'positive'});
+            validateattributes(n, {'numeric'}, {'scalar', 'integer', '>=', 2});
+            validateattributes(max_levels, {'numeric'}, {'scalar', 'integer', 'positive'});
+            validateattributes(p0, {'numeric'}, {'scalar', '>', 0, '<', 1});
+            if ~isempty(states)
+                obj.G = SeMCS.prescribed_state(obj.G, states{1}, true, 'overlay');
             end
             obj.G.L = eye(obj.Ndim);
             obj.G.log_normalizer = 0;
         end
 
-        function [context, record] = sample_level(~, context, level)
-            if level == 1
-                x = randn(context.model.Ndim, context.owner.NumSam);
-                g = reshape(context.model.lsf(x), 1, []);
+        function [x, y, calls, obj] = sample_level(obj, sampler, n, x_seed, g_seed, steps, ite)
+            if ite == 1
+                x = randn(obj.Ndim, n);
+                g = reshape(obj.lsf(x), 1, []);
                 calls = size(x, 2);
             else
-                lp_seed = logGauss(context.xs, context.model.Ndim);
-                packed = [log(double(context.model.contains(context.ys, lp_seed))); lp_seed; lp_seed; context.ys];
-                context.sampler.BayStc = context.model;
-                [x, packed, calls, context.model] = context.sampler.SamGen(context.xs, packed, context.steps);
-                x = reshape(x, context.model.Ndim, []);
+                lp_seed = logGauss(x_seed, obj.Ndim);
+                packed = [log(double(obj.contains(g_seed, lp_seed))); lp_seed; lp_seed; g_seed];
+                sampler.BayStc = obj;
+                [x, packed, calls, obj] = sampler.SamGen(x_seed, packed, steps);
+                x = reshape(x, obj.Ndim, []);
                 g = reshape(packed(4,:,:), 1, []);
             end
 
@@ -136,25 +137,23 @@ classdef ReSuS
                 error('SeMCS:LSF', 'LSF must return one finite value per column.');
             end
 
-            lp = logGauss(x, context.model.Ndim);
-            y = [log(double(context.model.contains(g, lp))); lp; lp; g];
-            record = struct('x', x, 'y', y, 'values', g, 'logpdf', lp, 'calls', calls, 'count', numel(g), 'shape', [size(x, 2), 1]);
+            lp = logGauss(x, obj.Ndim);
+            y = [log(double(obj.contains(g, lp))); lp; lp; g];
         end
 
-        function context = select_run_seeds(~, context, record, ~)
-            probability = mean(context.next.contains(record.values, record.logpdf));
+        function [x_seed, g_seed, steps, obj, probability] = select_run_seeds(obj, x, y, previous, n)
+            values = y(4, :);
+            logpdf = y(3, :);
+            probability = mean(obj.contains(values, logpdf));
             if probability <= 0
                 error('SeMCS:Support', 'Intermediate distribution has no supported samples.');
             end
 
-            context.conditional_probabilities(end + 1) = probability;
-            context.next.G.log_normalizer = context.model.G.log_normalizer + log(probability);
-            [context.xs, context.ys, context.steps] = context.next.select_seeds(record.x, record.values, record.logpdf, context.owner.NumSam);
-            if isempty(context.ys)
+            obj.G.log_normalizer = previous.G.log_normalizer + log(probability);
+            [x_seed, g_seed, steps] = obj.select_seeds(x, values, logpdf, n);
+            if isempty(g_seed)
                 error('SeMCS:Seeds', 'No admissible seeds.');
             end
-
-            context.model = context.next;
         end
 
     end
