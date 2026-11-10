@@ -11,8 +11,8 @@ MATLAB implementation of **Relaxed Subset Simulation (ReSuS)**. This code accomp
 - [Requirements](#requirements)
 - [Repository structure](#repository-structure)
 - [Quick start](#quick-start)
-- [Built-in examples and settings](#built-in-examples-and-settings)
-- [Custom performance function](#custom-performance-function)
+- [Built-in examples](#built-in-examples)
+- [Using a custom performance function](#using-a-custom-performance-function)
 - [Outputs](#outputs)
 - [Citation](#citation)
 - [License](#license)
@@ -36,12 +36,20 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Repository structure
 
-- `drive_resus.m` — example selection, settings and execution.
-- `SeMCS.m` — the common sampler-driven iteration and stored levels; `Support-Fun/ReSuSProduct.m` — native probability-product postprocessing invoked by the driver.
-- `ReSuS.m` — hybrid distributions, thresholds, seed selection and convergence.
-- `Limit-state-functions/` — `LSF_2D_PiecewiseLinear.m`, `LSF_2D_ChangingTopological.m`, `LSF_2D_LinearLog.m`, examples A–C.
-- `MCMC-samplers/` — `MCMCBase.m`, `CW_aMH.m`, `aCS.m`, `HMC.m`, `ES.m`, sampling interface and kernels.
-- `Operations on Logarithmic values/logGauss.m` — standard-normal log density used by the framework and model.
+```text
+.
+├── drive_resus.m             % example selection, settings and execution.
+├── SeMCS.m                   % the common sampler-driven iteration and stored levels.
+├── ReSuS.m                   % hybrid distributions, thresholds, seed selection and convergence.
+├── Limit-state-functions/    % LSF_2D_PiecewiseLinear.m, LSF_2D_ChangingTopological.m, LSF_2D_LinearLog.m, examples A–C.
+├── MCMC-samplers/            % MCMCBase.m, CW_aMH.m, aCS.m, HMC.m, ES.m, sampling interface and kernels.
+├── Support-Fun/
+│   └── ReSuSProduct.m        % native probability-product postprocessing invoked by the driver.
+├── Operations on Logarithmic values/
+│   └── logGauss.m            % standard-normal log density used by the framework and model.
+├── LICENSE
+└── README.md
+```
 
 ## Quick start
 
@@ -56,7 +64,7 @@ out_c = drive_resus('C',1000,411,'aCS','paper');
 
 To change the problem, sample size, seed, sampler or profile, edit the driver settings or pass the corresponding arguments shown above.
 
-## Built-in examples and settings
+## Built-in examples
 
 | Example | Model / dimension | Driver selector |
 |---|---|---|
@@ -72,7 +80,7 @@ The defaults are example A, 5000 samples per level, seed 1, conditional probabil
 
 `CW_aMH` uses seed-spread-scaled uniform increments in whitened Gaussian-reference coordinates. `ES` uses coordinatewise initial angles in `[0, pi]`. `aCS` starts with `sigma0=1` and `lambda0=0.6`, uses five adaptation groups and target acceptance 0.44, and carries lambda between levels. `HMC` uses analytic Gaussian-reference rotation and carries its adapted trajectory time between levels. Fixed options belong to the sampler; evolving values belong to the model's `G`.
 
-## Custom performance function
+## Using a custom performance function
 
 Write a function with the same interface as the files in `Limit-state-functions/`: it accepts a dimension-by-sample matrix in standard-normal reference coordinates and returns one finite LSF value per column, with failure defined by `g <= 0`.
 
@@ -106,3 +114,4 @@ If you use this code in your research, please cite:
 ## License
 
 This project is licensed under the [MIT License](LICENSE). Original copyright and source notices are retained. [Other language](https://github.com/ZihanLiao-ZJU/Relaxed-Subset-Simulation-Python).
+
