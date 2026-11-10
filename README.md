@@ -52,16 +52,13 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
-Set `MaxIte` to the maximum number of sampled levels. A scalar `NumSam` is reused; a vector is a finite per-level budget. The run returns when either limit is reached, and `flg_cvg` reports the method's own convergence criterion. Entries in `G` patch intermediate states; omitted fields and carried `lambda`/`HMC_time` are retained.
-
-Run from this repository's root:
+Run from the repository root; the driver adds the required subfolders. This runs Example A once with a constant `n_samples = 5000` per level and the default `ES` sampler:
 
 ```matlab
-out = drive_resus('A',1000,411,'ES','paper');
-out_c = drive_resus('C',1000,411,'aCS','paper');
+out = drive_resus('A', 5000, 1, 'ES');
 ```
 
-To change the problem, sample size, seed, sampler or profile, edit the driver settings or pass the corresponding arguments shown above.
+The first argument selects `A`, `B` or `C`, the second sets the constant sample count, and the fourth selects `ES`, `aCS`, `CW_aMH` or `HMC`. This call retains the driver's default `legacy` profile. Each call produces one probability estimate; change the third argument (the seed) for independent repetitions.
 
 ## Built-in examples
 
