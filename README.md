@@ -38,14 +38,14 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 ```text
 .
 ├── drive_resus.m             % example selection, settings and execution.
-├── SeMCS.m                   % the common sampler-driven iteration and stored levels.
+├── SeMCS.m                   % sequential sampling and stored levels.
 ├── ReSuS.m                   % hybrid distributions, thresholds, seed selection and convergence.
 ├── Limit-state-functions/    % LSF_2D_PiecewiseLinear.m, LSF_2D_ChangingTopological.m, LSF_2D_LinearLog.m, examples A–C.
 ├── MCMC-samplers/            % MCMCBase.m, CW_aMH.m, aCS.m, HMC.m, ES.m, sampling interface and kernels.
 ├── Support-Fun/
 │   └── ReSuSProduct.m        % native probability-product postprocessing invoked by the driver.
 ├── Operations on Logarithmic values/
-│   └── logGauss.m            % standard-normal log density used by the framework and model.
+│   └── logGauss.m            % standard-normal log density.
 ├── LICENSE
 └── README.md
 ```
