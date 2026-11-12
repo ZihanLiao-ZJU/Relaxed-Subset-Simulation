@@ -52,13 +52,15 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
-Run from the repository root; the driver adds the required subfolders. This runs Example A once with a constant `n_samples = 5000` per level and the default `ES` sampler:
+Edit `example`, `Nsam` and `SamplerClass` inside `drive_resus.m`. Select `SamplerClass = @ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
+
+The script defaults to Example A, 5000 samples per level and one run. The conditional probability is 0.1 and the default profile is `legacy`.
+
+Run the chosen script from the repository root:
 
 ```matlab
-out = drive_resus('A', 5000, 1, 'ES');
+drive_resus
 ```
-
-The first argument selects `A`, `B` or `C`, the second sets the constant sample count, and the fourth selects `ES`, `aCS`, `CW_aMH` or `HMC`. This call retains the driver's default `legacy` profile. Each call produces one probability estimate; change the third argument (the seed) for independent repetitions.
 
 ## Built-in examples
 
@@ -68,13 +70,13 @@ The first argument selects `A`, `B` or `C`, the second sets the constant sample 
 | B | Nonlinear changing-topology LSF; 2 independent standard normals | `B` |
 | C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `C` |
 
-The defaults are example A, 5000 samples per level, seed 1, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100. The quick-start commands select 1000 samples and the `paper` profile explicitly.
+The defaults are example A, 5000 samples per level, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100.
 
 - `legacy` uses midpoint thresholds and strict seed eligibility.
 - `paper` uses order-statistic thresholds, inclusive eligibility and Algorithm 1 chain-count rounding.
 - Both profiles use the probability-product estimator.
 
-`CW_aMH` uses seed-spread-scaled uniform increments in whitened Gaussian-reference coordinates. `ES` uses coordinatewise initial angles in `[0, pi]`. `aCS` starts with `sigma0=1` and `lambda0=0.6`, uses five adaptation groups and target acceptance 0.44, and carries lambda between levels. `HMC` uses analytic Gaussian-reference rotation and carries its adapted trajectory time between levels. Fixed options belong to the sampler; evolving values belong to the model's `G`.
+`CW_aMH` uses seed-spread-scaled uniform increments in whitened Gaussian-reference coordinates. `ES` uses coordinatewise initial angles in `[0, pi]`. `aCS` starts with `sigma0=1` and `lambda0=0.6`, uses five adaptation groups and target acceptance 0.44, and carries lambda between levels. `HMC` uses analytic Gaussian-reference rotation and carries its adapted trajectory time between levels.
 
 ## Using a custom performance function
 

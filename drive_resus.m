@@ -1,66 +1,38 @@
-function out = drive_resus(example, n_samples, seed, sampler_name, profile)
-    % Run one Re-SuS probability-product estimate. Example: out = drive_resus('A',1000,1,'ES').
-    root = fileparts(mfilename('fullpath'));
-    addpath(fullfile(root, 'MCMC-samplers'));
-    addpath(fullfile(root, 'Limit-state-functions'));
-    addpath(fullfile(root, 'Support-Fun'));
-    addpath(fullfile(root, 'Operations on Logarithmic values'));
-    if nargin < 1
-        example = 'A';
-    end
+%% Problem and sampling settings
+example = 'A';
+Nsam = 5000;                  % Constant samples per level
+SamplerClass = @ES;           % CW_aMH, aCS, HMC or ES
+profile = 'legacy';
 
-    if nargin < 2
-        n_samples = 5000;
-    end
+root = fileparts(mfilename('fullpath'));
+addpath(fullfile(root, 'MCMC-samplers'));
+addpath(fullfile(root, 'Limit-state-functions'));
+addpath(fullfile(root, 'Support-Fun'));
+addpath(fullfile(root, 'Operations on Logarithmic values'));
 
-    if nargin < 3
-        seed = 1;
-    end
+sampler = SamplerClass();
 
-    if nargin < 4
-        sampler_name = 'ES';
-    end
-
-    if nargin < 5
-        profile = 'legacy';
-    end
-
-    switch upper(sampler_name)
-        case'ACS'
-            sampler = aCS();
-        case'HMC'
-            sampler = HMC();
-        case'CW_AMH'
-            sampler = CW_aMH();
-        case'ES'
-            sampler = ES();  % public-library coordinatewise implementation
-        otherwise
-            error('drive_resus:Sampler', 'Choose CW_aMH, ES, aCS or HMC.');
-    end
-
-    rng(seed, 'twister');
-
-    switch upper(example)
-        case'A'
-            lsf =@LSF_2D_PiecewiseLinear;
-        case'B'
-            lsf =@LSF_2D_ChangingTopological;
-        case'C'
-            lsf =@LSF_2D_LinearLog;
-        otherwise
-            error('drive_resus:Example', 'Choose example A, B or C.');
-    end
-
-    model = ReSuS(Inf, Inf, profile);
-    model.lsf = lsf;
-    model.Ndim = 2;
-    sampler.BayStc = model;
-    engine = SeMCS(sampler);
-    engine.NumSam = n_samples;
-    engine.ConPrb = 0.1;
-    engine.MaxIte = 100;
-    raw = engine.RunIte();
-    out = ReSuSProduct(raw);
-    fprintf('%s: Pf = %.8g, levels = %d, LSF evaluations = %d, converged = %d\n', ...
-        upper(example), out.pf, numel(out.sample_counts), out.n_calls, out.converged);
+%% Define problem and run simulation
+switch upper(example)
+    case'A'
+        lsf =@LSF_2D_PiecewiseLinear;
+    case'B'
+        lsf =@LSF_2D_ChangingTopological;
+    case'C'
+        lsf =@LSF_2D_LinearLog;
+    otherwise
+        error('drive_resus:Example', 'Choose example A, B or C.');
 end
+
+model = ReSuS(Inf, Inf, profile);
+model.lsf = lsf;
+model.Ndim = 2;
+sampler.BayStc = model;
+engine = SeMCS(sampler);
+engine.NumSam = Nsam;
+engine.ConPrb = 0.1;
+engine.MaxIte = 100;
+raw = engine.RunIte();
+out = ReSuSProduct(raw);
+fprintf('%s: Pf = %.8g, levels = %d, LSF evaluations = %d, converged = %d\n', ...
+    upper(example), out.pf, numel(out.sample_counts), out.n_calls, out.converged);
