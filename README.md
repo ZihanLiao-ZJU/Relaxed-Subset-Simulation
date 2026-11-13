@@ -54,7 +54,7 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 Add this repository and all its subfolders to the MATLAB path before running the script.
 
-Edit `example`, `Nsam` and `SamplerClass` inside `drive_resus.m`. Select `SamplerClass = @ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
+Edit `model.lsf`, `simulation.NumSam` and `SamplerClass` inside `drive_resus.m`. Select `SamplerClass = @ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
 
 The script defaults to Example A, 5000 samples per level and one run. The conditional probability is 0.1 and the default profile is `legacy`.
 
@@ -68,9 +68,9 @@ drive_resus
 
 | Example | Model / dimension | Driver selector |
 |---|---|---|
-| A | Piecewise-linear LSF; 2 independent standard normals | `A` |
-| B | Nonlinear changing-topology LSF; 2 independent standard normals | `B` |
-| C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `C` |
+| A | Piecewise-linear LSF; 2 independent standard normals | `LSF_2D_PiecewiseLinear` |
+| B | Nonlinear changing-topology LSF; 2 independent standard normals | `LSF_2D_ChangingTopological` |
+| C | Linear / logistic LSF, paper Eq. (26); 2 independent standard normals | `LSF_2D_LinearLog` |
 
 The defaults are example A, 5000 samples per level, conditional probability 0.1, `ES`, and the `legacy` profile. The maximum number of levels is 100.
 

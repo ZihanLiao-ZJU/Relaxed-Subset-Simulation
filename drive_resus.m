@@ -1,33 +1,17 @@
-%% Problem and sampling settings
-example = 'A';
-Nsam = 5000;                  % Constant samples per level
-SamplerClass = @ES;           % CW_aMH, aCS, HMC or ES
-profile = 'legacy';
-
-
-sampler = SamplerClass();
-
-%% Define problem and run simulation
-switch upper(example)
-    case'A'
-        lsf =@LSF_2D_PiecewiseLinear;
-    case'B'
-        lsf =@LSF_2D_ChangingTopological;
-    case'C'
-        lsf =@LSF_2D_LinearLog;
-    otherwise
-        error('drive_resus:Example', 'Choose example A, B or C.');
-end
-
-model = ReSuS(Inf, Inf, profile);
-model.lsf = lsf;
+%% Performance function
+model = ReSuS();
+model.lsf = @LSF_2D_PiecewiseLinear;       % Example A
+% model.lsf = @LSF_2D_ChangingTopological;  % Example B
+% model.lsf = @LSF_2D_LinearLog;            % Example C
 model.Ndim = 2;
-sampler.BayStc = model;
-engine = SeMCS(sampler);
-engine.NumSam = Nsam;
-engine.ConPrb = 0.1;
-engine.MaxIte = 100;
-raw = engine.RunIte();
+
+%% Sampler and simulation
+SamplerClass = @ES;                         % CW_aMH, aCS, HMC or ES
+simulation = SeMCS(SamplerClass(model));
+simulation.NumSam = 5000;
+raw = simulation.RunIte();
+
+%% Failure probability
 out = ReSuSProduct(raw);
 fprintf('%s: Pf = %.8g, levels = %d, LSF evaluations = %d, converged = %d\n', ...
-    upper(example), out.pf, numel(out.sample_counts), out.n_calls, out.converged);
+    func2str(model.lsf), out.pf, numel(out.sample_counts), out.n_calls, out.converged);
