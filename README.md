@@ -52,6 +52,8 @@ The default sampler is `ES`; `CW_aMH`, `aCS`, and `HMC` are also available.
 
 ## Quick start
 
+Add this repository and all its subfolders to the MATLAB path before running the script.
+
 Edit `example`, `Nsam` and `SamplerClass` inside `drive_resus.m`. Select `SamplerClass = @ES` (the default), or choose another supplied sampler: `CW_aMH`, `aCS`, `HMC` or `ES`.
 
 The script defaults to Example A, 5000 samples per level and one run. The conditional probability is 0.1 and the default profile is `legacy`.

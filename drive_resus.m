@@ -4,11 +4,6 @@ Nsam = 5000;                  % Constant samples per level
 SamplerClass = @ES;           % CW_aMH, aCS, HMC or ES
 profile = 'legacy';
 
-root = fileparts(mfilename('fullpath'));
-addpath(fullfile(root, 'MCMC-samplers'));
-addpath(fullfile(root, 'Limit-state-functions'));
-addpath(fullfile(root, 'Support-Fun'));
-addpath(fullfile(root, 'Operations on Logarithmic values'));
 
 sampler = SamplerClass();
 
